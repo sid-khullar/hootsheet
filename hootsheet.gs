@@ -3,9 +3,9 @@ function createConsolidatedSheet() {
   // Configuration
   Logger.log ("Initialising...");
 
-  var spreadsheetID = "1OhzxtHMicG0mFrCFE3Oxe0ptxkqEpnhB4OlEE1ySijs";
+  var spreadsheetID = "Spreadsheet ID here";
   var configBeginRow = 6;
-  var configSheetName = "Config";
+  var configSheetName = "Config sheet name here";
   var configSheetCol = 2;
   var configMsgCol = 3;
   var configDateCol = 6;
