@@ -5,7 +5,7 @@ function createConsolidatedSheet() {
 
   var spreadsheetID = "Spreadsheet ID here";
   var configBeginRow = 6;
-  var configSheetName = "Config sheet name here";
+  var configSheetName = "Config";
   var configSheetCol = 2;
   var configMsgCol = 3;
   var configDateCol = 6;
@@ -19,6 +19,10 @@ function createConsolidatedSheet() {
   var hootSheet = SpreadsheetApp.openById(spreadsheetID);
   SpreadsheetApp.setActiveSpreadsheet(hootSheet);
   var configSheet = hootSheet.getSheetByName(configSheetName);
+  if (configSheet == null) {
+    Logger.log ("ERR: Cannot find configuration worksheet.")
+    return
+  }
   
   var readConfig = true;
   var readRow = configBeginRow;
@@ -215,6 +219,17 @@ function createConsolidatedSheet() {
       // sort this sheet
       range = target.getRange (`A1:C${start_row}`)
       range.sort (1)
+
+      // export as CSV
+      // // append ".csv" extension to the sheet name
+      // fileName = target.getName() + ".csv";
+      // // convert all available sheet data to csv format
+      // var csvFile = convertRangeToCsvFile_(fileName, sheet);
+      // // create a file in the Docs List with the given name and the csv data
+      // var file = folder.createFile(fileName, csvFile);
+      // //File downlaod
+      // var downloadURL = file.getDownloadUrl().slice(0, -8);
+      // showurl(downloadURL);
 
     }
 
