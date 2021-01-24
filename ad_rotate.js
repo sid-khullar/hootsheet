@@ -16,7 +16,7 @@ ads.push ("https://domain.com/path/to/image/inline_7.png");
 num_ads = ads.length;
 
 // get random ad subscript
-random_pick = Math.floor(Math.random() * (num_ads + 1));
+random_pick = Math.floor(Math.random() * (num_ads));
 
 // get random ad URL
 random_ad_url = ads [random_pick];
