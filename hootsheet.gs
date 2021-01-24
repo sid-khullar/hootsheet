@@ -1,25 +1,44 @@
+function displayStatus (statusConfig, statusMessage) {
+
+  var workBook = SpreadsheetApp.openById(statusConfig.wbID);
+  SpreadsheetApp.setActiveSpreadsheet(workBook);
+  var configSheet = workBook.getSheetByName(statusConfig.wsName);
+
+  range = configSheet.getRange (statusConfig.statusRow, statusConfig.statusCol);
+  range.setValue (statusMessage);
+
+}
+
 function createConsolidatedSheet() {
 
   // Configuration
   Logger.log ("Initialising...");
 
-  var spreadsheetID = "Spreadsheet ID here";
+  var spreadsheetID = "XXXXX";
   var configBeginRow = 6;
-  var configSheetName = "Config";
+  var configSheetName = "XXXXX";
   var configSheetCol = 2;
   var configMsgCol = 3;
   var configDateCol = 6;
   var configTagCol = 7;
 
+  var statusConfig = new Object();
+  statusConfig.wbID = spreadsheetID;
+  statusConfig.wsName = configSheetName;
+  statusConfig.statusRow = 2;
+  statusConfig.statusCol = 9;
+
   // Begin reading configuration
   // traverse column containing sheet names, get configuration data
   // and store, to avoid too many nesting levels 
+  displayStatus (statusConfig, "Reading configuration sheet...");
   Logger.log ("Reading configuration sheet...");
 
   var hootSheet = SpreadsheetApp.openById(spreadsheetID);
   SpreadsheetApp.setActiveSpreadsheet(hootSheet);
   var configSheet = hootSheet.getSheetByName(configSheetName);
   if (configSheet == null) {
+    displayStatus (statusConfig, "ERR: Cannot find configuration worksheet.");
     Logger.log ("ERR: Cannot find configuration worksheet.")
     return
   }
@@ -46,6 +65,7 @@ function createConsolidatedSheet() {
 
     // check if all of the variables have values
     if (numMessages == "" || msgDate == "" || targetSheet == "") {
+      displayStatus (statusConfig, "ERR: Sheet, Messages, Date and Tag columns must not contain empty cells.");
       Logger.log ("ERR: Sheet, Messages, Date and Tag columns must not contain empty cells.");
       return
     }
@@ -74,6 +94,7 @@ function createConsolidatedSheet() {
   // but first, check if the specified sheets exist
   // both source and target, as well as make a list of
   // target sheets
+  displayStatus (statusConfig, "Checking source and target sheets...");
   Logger.log ("Checking source and target sheets...");
   var arrayLength = config_array.length;
   var target_sheets = [];
@@ -83,10 +104,12 @@ function createConsolidatedSheet() {
     var source = hootSheet.getSheetByName (one_config.source_sheet);
     var target = hootSheet.getSheetByName (one_config.target_sheet);
     if (source == null) {
+      displayStatus (statusConfig, `ERR: Sheet '${one_config.source_sheet}' does not exist.`);
       Logger.log (`ERR: Sheet '${one_config.source_sheet}' does not exist.`);
       return;
     }
     if (target == null) {
+      displayStatus (statusConfig, `ERR: Sheet '${one_config.target_sheet}' does not exist.`);
       Logger.log (`ERR: Sheet '${one_config.target_sheet}' does not exist.`);
       return;
     }
@@ -102,6 +125,7 @@ function createConsolidatedSheet() {
   // checked that the target sheets exist.
   // now visit each specified sheet and find the specified date
   // and pick up the specified number of messages from there.
+  displayStatus (statusConfig, "Reading messages from source sheets...");
   Logger.log ("Reading messages from source sheets...");
   var message_list = [];
   for (var i = 0; i < arrayLength; i++) {
@@ -124,19 +148,34 @@ function createConsolidatedSheet() {
     var start_counter = false;
     var counter = 0;
 
-    // Logger.log (`  processing ${one_config.source_sheet}`);
+    displayStatus (statusConfig, `  processing ${one_config.source_sheet}`);
+    Logger.log (`  processing ${one_config.source_sheet}`);
     while (traverse) {
 
       var msg_date = message_sheet.getRange(start_row, date_col).getValue();
       var msg_text = message_sheet.getRange(start_row, mesg_col).getValue();
       var msg_link = message_sheet.getRange(start_row, link_col).getValue();
 
-      var date_1 = new Date (seek_date).toDateString();
-      var date_2 = new Date (msg_date).toDateString();
+      var date_1 = new Date(Date (seek_date).toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      var date_2 = new Date(Date (msg_date).toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+
+      // var date_1 = new Date (date_1);
+      // var date_2 = new Date (date_2);
+
+      dateStr_1 = `${date_1.getFullYear()}/${date_1.getMonth()}/${date_1.getDate()}`
+      dateStr_2 = `${date_2.getFullYear()}/${date_2.getMonth()}/${date_2.getDate()}`
+
+      if (one_config.source_sheet == "Quotes") {
+        Logger.log (`${dateStr_1}, ${dateStr_2}`);
+      }
 
       // found the specified date
-      if (date_1 == date_2) {
+      if (dateStr_1 == dateStr_2) {
         start_counter = true
+      }
+
+      if (msg_text == "") {
+        traverse = false
       }
 
       // if the counter has begun, start 
@@ -146,6 +185,7 @@ function createConsolidatedSheet() {
         if (counter < num_messages) {
           
           if (msg_date == "" || msg_text == "") {
+            displayStatus (statusConfig, `ERR: Empty data found in specified range in ${one_config.source_sheet}`);
             Logger.log (`ERR: Empty data found in specified range in ${one_config.source_sheet}`);
             return;
           }
@@ -157,8 +197,8 @@ function createConsolidatedSheet() {
           message_dict.msg_link = msg_link;
           
           message_list.push (message_dict)
-          
-          start_row++
+        
+          // increment counter
           counter++;
 
         } else {
@@ -172,10 +212,14 @@ function createConsolidatedSheet() {
         
       }
 
+      // increment row
+      start_row++
+
     }
 
   }
 
+  displayStatus (statusConfig, "Writing messages to target sheets...");
   Logger.log ("Writing messages to target sheets...")
   // We now have an array of dictionaries, each one with a messag
   // to be written to a specific sheet. We'll travese the original
@@ -220,19 +264,10 @@ function createConsolidatedSheet() {
       range = target.getRange (`A1:C${start_row}`)
       range.sort (1)
 
-      // export as CSV
-      // // append ".csv" extension to the sheet name
-      // fileName = target.getName() + ".csv";
-      // // convert all available sheet data to csv format
-      // var csvFile = convertRangeToCsvFile_(fileName, sheet);
-      // // create a file in the Docs List with the given name and the csv data
-      // var file = folder.createFile(fileName, csvFile);
-      // //File downlaod
-      // var downloadURL = file.getDownloadUrl().slice(0, -8);
-      // showurl(downloadURL);
-
     }
 
   }
+
+  displayStatus (statusConfig, "Completed.");
 
 }
