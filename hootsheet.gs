@@ -9,18 +9,20 @@ function displayStatus (statusConfig, statusMessage) {
 
 }
 
+// main function
 function createConsolidatedSheet() {
 
   // Configuration
   Logger.log ("Initialising...");
 
-  var spreadsheetID = "XXXXX";
+  var spreadsheetID = "<ID HERE>";
   var configBeginRow = 6;
-  var configSheetName = "XXXXX";
+  var configSheetName = "Config";
   var configSheetCol = 2;
   var configMsgCol = 3;
   var configDateCol = 6;
   var configTagCol = 7;
+  var configLastMsgDateCol = 9;
 
   var statusConfig = new Object();
   statusConfig.wbID = spreadsheetID;
@@ -65,8 +67,9 @@ function createConsolidatedSheet() {
 
     // check if all of the variables have values
     if (numMessages == "" || msgDate == "" || targetSheet == "") {
-      displayStatus (statusConfig, "ERR: Sheet, Messages, Date and Tag columns must not contain empty cells.");
-      Logger.log ("ERR: Sheet, Messages, Date and Tag columns must not contain empty cells.");
+      errMsg = `ERR: Sheet, Messages, Date and Tag columns must not contain empty cells. Row=${readRow}`
+      displayStatus (statusConfig, errMsg);
+      Logger.log (errMsg);
       return
     }
 
@@ -76,6 +79,10 @@ function createConsolidatedSheet() {
     config_dict.num_messages = numMessages;
     config_dict.start_date = msgDate;
     config_dict.target_sheet = targetSheet;
+    config_dict.config_row = readRow;
+
+    // display found configuration
+    Logger.log (`${sourceSheet}, ${numMessages}, ${msgDate}, ${targetSheet}`)
 
     // add dict to array
     config_array.push (config_dict);
@@ -94,8 +101,9 @@ function createConsolidatedSheet() {
   // but first, check if the specified sheets exist
   // both source and target, as well as make a list of
   // target sheets
-  displayStatus (statusConfig, "Checking source and target sheets...");
-  Logger.log ("Checking source and target sheets...");
+  stsMsg = "Checking source and target sheets..."
+  displayStatus (statusConfig, );
+  Logger.log (stsMsg);
   var arrayLength = config_array.length;
   var target_sheets = [];
   for (var i = 0; i < arrayLength; i++) {
@@ -104,13 +112,15 @@ function createConsolidatedSheet() {
     var source = hootSheet.getSheetByName (one_config.source_sheet);
     var target = hootSheet.getSheetByName (one_config.target_sheet);
     if (source == null) {
-      displayStatus (statusConfig, `ERR: Sheet '${one_config.source_sheet}' does not exist.`);
-      Logger.log (`ERR: Sheet '${one_config.source_sheet}' does not exist.`);
+      errMsg = `ERR: Sheet '${one_config.source_sheet}' does not exist.`
+      displayStatus (statusConfig, errMsg);
+      Logger.log (errMsg);
       return;
     }
     if (target == null) {
-      displayStatus (statusConfig, `ERR: Sheet '${one_config.target_sheet}' does not exist.`);
-      Logger.log (`ERR: Sheet '${one_config.target_sheet}' does not exist.`);
+      errMsg = `ERR: Sheet '${one_config.target_sheet}' does not exist.`
+      displayStatus (statusConfig, errMsg);
+      Logger.log (errMsg);
       return;
     }
 
@@ -125,14 +135,17 @@ function createConsolidatedSheet() {
   // checked that the target sheets exist.
   // now visit each specified sheet and find the specified date
   // and pick up the specified number of messages from there.
-  displayStatus (statusConfig, "Reading messages from source sheets...");
-  Logger.log ("Reading messages from source sheets...");
+  // After picking the last message, update the last message date column
+  // so we know when to reschedule messages, dates etc.
+  stsMsg = "Reading messages from source sheets..."
+  displayStatus (statusConfig, stsMsg);
+  Logger.log (stsMsg);
   var message_list = [];
   for (var i = 0; i < arrayLength; i++) {
     one_config = config_array [i];
 
     var message_sheet = hootSheet.getSheetByName (one_config.source_sheet);
-    var seek_date = one_config.start_date;
+    var start_date = one_config.start_date;
     var num_messages = one_config.num_messages;
     var target_sheet = one_config.target_sheet;
 
@@ -148,34 +161,40 @@ function createConsolidatedSheet() {
     var start_counter = false;
     var counter = 0;
 
-    displayStatus (statusConfig, `  processing ${one_config.source_sheet}`);
-    Logger.log (`  processing ${one_config.source_sheet}`);
+    stsMsg = `  processing ${one_config.source_sheet}`
+    displayStatus (statusConfig, stsMsg);
+    Logger.log (stsMsg);
     while (traverse) {
 
       var msg_date = message_sheet.getRange(start_row, date_col).getValue();
       var msg_text = message_sheet.getRange(start_row, mesg_col).getValue();
       var msg_link = message_sheet.getRange(start_row, link_col).getValue();
 
-      var date_1 = new Date(Date (seek_date).toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-      var date_2 = new Date(Date (msg_date).toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      // if any data is blank, exit
+      if (msg_text == "" || msg_date == "") {
+        traverse = false;
 
-      // var date_1 = new Date (date_1);
-      // var date_2 = new Date (date_2);
-
-      dateStr_1 = `${date_1.getFullYear()}/${date_1.getMonth()}/${date_1.getDate()}`
-      dateStr_2 = `${date_2.getFullYear()}/${date_2.getMonth()}/${date_2.getDate()}`
-
-      if (one_config.source_sheet == "Quotes") {
-        Logger.log (`${dateStr_1}, ${dateStr_2}`);
+        if (counter < num_messages) {
+          Logger.log (`Found blank entry. Exiting at message count ${counter}`)
+          Logger.log ("Message quota specified not met. Please add more messages.")
+          return
+        }
+        else {
+          break;
+        }
       }
 
-      // found the specified date
-      if (dateStr_1 == dateStr_2) {
+      // month index is 0
+      dateStr_1 = `${start_date.getFullYear()}` + `/` + `${start_date.getMonth()+1}` + `/` + `${start_date.getDate()}`
+      dateStr_2 = `${msg_date.getFullYear()}`   + `/` + `${msg_date.getMonth()+1}`   + `/` + `${msg_date.getDate()}`
+
+      // found the specified start date
+      if (dateStr_1 == dateStr_2 && !start_counter) {
+        stsMsg = `Found start date at ${dateStr_1}`
+        displayStatus (statusConfig, stsMsg);
+        Logger.log (stsMsg);
+
         start_counter = true
-      }
-
-      if (msg_text == "") {
-        traverse = false
       }
 
       // if the counter has begun, start 
@@ -185,8 +204,9 @@ function createConsolidatedSheet() {
         if (counter < num_messages) {
           
           if (msg_date == "" || msg_text == "") {
-            displayStatus (statusConfig, `ERR: Empty data found in specified range in ${one_config.source_sheet}`);
-            Logger.log (`ERR: Empty data found in specified range in ${one_config.source_sheet}`);
+            errMsg = `ERR: Empty data found in specified range in ${one_config.source_sheet}`
+            displayStatus (statusConfig, errMsg);
+            Logger.log (errMsg);
             return;
           }
 
@@ -196,33 +216,40 @@ function createConsolidatedSheet() {
           message_dict.msg_text = msg_text;
           message_dict.msg_link = msg_link;
           
+          Logger.log (msg_date);
+
           message_list.push (message_dict)
-        
+
+          // write currently processing message date
+          range = configSheet.getRange (one_config.config_row, configLastMsgDateCol);
+          range.setValue (msg_date);
+
           // increment counter
           counter++;
+
 
         } else {
 
           // reached specified message limit.
           // stop counter and stop traversing this sheet
-          start_counter = false
-          traverse = false
+          start_counter = false;
+          traverse = false;
 
         }
         
       }
 
       // increment row
-      start_row++
+      start_row++;
 
     }
 
   }
-
-  displayStatus (statusConfig, "Writing messages to target sheets...");
-  Logger.log ("Writing messages to target sheets...")
+  stsMsg = "Writing data to output sheets."
+  displayStatus (statusConfig, stsMsg);
+  Logger.log (stsMsg)
   // We now have an array of dictionaries, each one with a messag
-  // to be written to a specific sheet. We'll travese the original
+  // to be written to a specific sheet. We'll traverse the original
   // config dictionary and write these to the target sheets.
   num_targets = target_sheets.length;
   for (var i = 0; i < num_targets; i++) {
@@ -261,13 +288,15 @@ function createConsolidatedSheet() {
       }
 
       // sort this sheet
-      range = target.getRange (`A1:C${start_row}`)
-      range.sort (1)
+      range = target.getRange (`A1:C${start_row}`);
+      range.sort (1);
 
     }
 
   }
 
-  displayStatus (statusConfig, "Completed.");
+  stsMsg = "Completed."
+  displayStatus (statusConfig, stsMsg);
+  Logger.log (stsMsg);
 
 }
